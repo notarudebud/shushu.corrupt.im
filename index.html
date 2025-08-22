@@ -2,37 +2,334 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>shushu</title>
+  <title>@shushu</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');
-
-    html, body {
+    body {
       margin: 0;
-      height: 100%;
+      font-family: monospace, sans-serif;
+      background: #f5f5f5;
+      color: #111;
+    }
+
+    header {
+      background: #eee;
+      padding: 10px;
+      border-bottom: 1px solid #ccc;
+    }
+
+    header a {
+      color: #111;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    header a:hover {
+      text-decoration: underline;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 10px auto;
+      padding: 10px;
+    }
+
+    textarea, input[type="text"] {
+      width: 100%;
+      margin: 5px 0;
+      padding: 8px;
+      border: 1px solid #aaa;
+      font-family: monospace;
+      resize: none;
+    }
+
+    button {
+      padding: 6px 12px;
+      border: 1px solid #333;
+      background: #ddd;
+      cursor: pointer;
+      font-family: monospace;
+      margin-bottom: 15px; /* gap between Upload button and posts */
+    }
+    button:hover {
+      background: #ccc;
+    }
+
+    .post {
+      background: #fff;
+      padding: 10px;
+      border: 1px solid #ccc;
+      margin-bottom: 15px;
+      width: 100%;
+      box-sizing: border-box;
       display: flex;
-      justify-content: center;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .post img {
+      max-width: 180px;
+      max-height: 180px;
+      border: 1px solid #ddd;
+    }
+
+    .post-content {
+      flex: 1;
+    }
+
+    .content {
+      white-space: pre-wrap; /* allow newlines */
+    }
+
+    .meta {
+      font-size: 12px;
+      color: #555;
+      margin-bottom: 5px;
+    }
+
+    .actions {
+      font-size: 14px;
+      white-space: nowrap;
+      display: flex;
+      gap: 10px;
       align-items: center;
-      background: #fdfaf3; /* off-white, paper vibe */
-      font-family: 'Playfair Display', serif; /* elegant, old-style serif */
     }
 
-    h1 {
-      font-size: 7rem;
-      color: #000;
-      letter-spacing: 6px;
-      text-shadow: 1px 1px 0 #ccc, -1px -1px 0 #ccc; /* subtle aged effect */
-      position: relative;
-      animation: flicker 1.5s infinite alternate;
+    .actions span {
+      cursor: pointer;
     }
 
-    @keyframes flicker {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.95; }
+    /* Notifications */
+    #notifications {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      z-index: 9999;
+    }
+
+    .notif {
+      background: #fff;
+      color: #111;
+      padding: 10px 14px;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+      opacity: 0;
+      transform: translateX(100%);
+      transition: all 0.3s ease-in-out;
+      white-space: nowrap;
+    }
+
+    .notif.show {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .notif.hide {
+      opacity: 0;
+      transform: translateX(100%);
+    }
+
+    /* Loading box */
+    .loading {
+      background: #fff;
+      border: 1px solid #ccc;
+      padding: 15px;
+      text-align: center;
+      font-size: 14px;
+      font-style: italic;
+      margin-bottom: 15px;
+    }
+
+    /* Mobile fixes */
+    @media (max-width: 600px) {
+      body {
+        font-size: 14px;
+      }
+      .container {
+        padding: 5px;
+      }
+      .post {
+        font-size: 14px;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .actions {
+        font-size: 12px;
+      }
+      .post img {
+        max-width: 100%;
+        max-height: 200px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>nickname</h1>
+  <header>
+    <a href="https://www.instagram.com/pizzawhiskers90/" target="_blank">@shushu · silly little experiment</a>
+  </header>
+
+  <div class="container">
+    <textarea id="postText" rows="3" placeholder="Type your message here..."></textarea>
+    <input type="text" id="postImage" placeholder="Optional image URL">
+    <button onclick="createPost()">Upload</button>
+
+    <div id="posts"></div>
+  </div>
+
+  <div id="notifications"></div>
+
+  <script>
+    const BIN_ID = "68a8143bae596e708fd0dd3a";
+    const MASTER_KEY = "$2a$10$Ew3l92X5qMxwJsfdJsSLYOa1WF6nUZU9.FRLUUayL2W5WfxGVL9O6";
+
+    async function fetchPosts() {
+      let postsDiv = document.getElementById("posts");
+      postsDiv.innerHTML = `<div class="loading">Loading posts...</div>`;
+      try {
+        let res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+          headers: { "X-Master-Key": MASTER_KEY }
+        });
+        let data = await res.json();
+        let posts = data.record.posts || [];
+        renderPosts(posts);
+      } catch (e) {
+        console.error("Error fetching:", e);
+        postsDiv.innerHTML = `<div class="loading">Failed to load posts</div>`;
+      }
+    }
+
+    async function savePosts(posts) {
+      await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Master-Key": MASTER_KEY
+        },
+        body: JSON.stringify({ posts })
+      });
+    }
+
+    async function createPost() {
+      let text = document.getElementById("postText").value.trim();
+      let image = document.getElementById("postImage").value.trim();
+      if (!text && !image) return;
+
+      let res = await fetch("https://api.ipify.org?format=json");
+      let ip = (await res.json()).ip;
+
+      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+        headers: { "X-Master-Key": MASTER_KEY }
+      });
+      let data = await res2.json();
+      let posts = data.record.posts || [];
+
+      posts.unshift({
+        user: ip,
+        text,
+        image: image || null,
+        time: new Date().toISOString(),
+        likes: [],
+        dislikes: []
+      });
+
+      await savePosts(posts);
+      document.getElementById("postText").value = "";
+      document.getElementById("postImage").value = "";
+      fetchPosts();
+      showNotif("Posted!");
+    }
+
+    function renderPosts(posts) {
+      let postsDiv = document.getElementById("posts");
+      postsDiv.innerHTML = "";
+      posts.forEach((p, i) => {
+        let date = new Date(p.time);
+        let dateStr = `${date.getMonth()+1}/${date.getDate()}, ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} ${date.getFullYear()}`;
+        
+        let div = document.createElement("div");
+        div.className = "post";
+        div.innerHTML = `
+          <div class="post-content">
+            <div class="meta">@${p.user} · ${dateStr}</div>
+            <div class="content">${p.text || ""}</div>
+            ${p.image ? `<img src="${p.image}" alt="img">` : ""}
+          </div>
+          <div class="actions">
+            <span onclick="likePost(${i})">👍 ${p.likes.length}</span>
+            <span onclick="dislikePost(${i})">👎 ${p.dislikes.length}</span>
+          </div>
+        `;
+        postsDiv.appendChild(div);
+      });
+    }
+
+    async function likePost(i) {
+      let res = await fetch("https://api.ipify.org?format=json");
+      let ip = (await res.json()).ip;
+
+      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+        headers: { "X-Master-Key": MASTER_KEY }
+      });
+      let data = await res2.json();
+      let posts = data.record.posts || [];
+
+      if (!posts[i]) return;
+
+      posts[i].dislikes = posts[i].dislikes.filter(u => u !== ip);
+      if (!posts[i].likes.includes(ip)) {
+        posts[i].likes.push(ip);
+        showNotif("Liked post");
+      } else {
+        posts[i].likes = posts[i].likes.filter(u => u !== ip);
+        showNotif("Unliked post");
+      }
+
+      await savePosts(posts);
+      fetchPosts();
+    }
+
+    async function dislikePost(i) {
+      let res = await fetch("https://api.ipify.org?format=json");
+      let ip = (await res.json()).ip;
+
+      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+        headers: { "X-Master-Key": MASTER_KEY }
+      });
+      let data = await res2.json();
+      let posts = data.record.posts || [];
+
+      if (!posts[i]) return;
+
+      posts[i].likes = posts[i].likes.filter(u => u !== ip);
+      if (!posts[i].dislikes.includes(ip)) {
+        posts[i].dislikes.push(ip);
+        showNotif("Disliked post");
+      } else {
+        posts[i].dislikes = posts[i].dislikes.filter(u => u !== ip);
+        showNotif("Undisliked post");
+      }
+
+      await savePosts(posts);
+      fetchPosts();
+    }
+
+    function showNotif(text) {
+      let notif = document.createElement("div");
+      notif.className = "notif";
+      notif.innerText = text;
+      document.getElementById("notifications").appendChild(notif);
+
+      setTimeout(() => notif.classList.add("show"), 50);
+      setTimeout(() => notif.classList.remove("show"), 2000);
+      setTimeout(() => notif.remove(), 2500);
+    }
+
+    fetchPosts();
+  </script>
 </body>
 </html>
