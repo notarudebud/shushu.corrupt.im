@@ -1,1 +1,38 @@
-nickname
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>shushu</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap');
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #fdfaf3; /* off-white, paper vibe */
+      font-family: 'Playfair Display', serif; /* elegant, old-style serif */
+    }
+
+    h1 {
+      font-size: 7rem;
+      color: #000;
+      letter-spacing: 6px;
+      text-shadow: 1px 1px 0 #ccc, -1px -1px 0 #ccc; /* subtle aged effect */
+      position: relative;
+      animation: flicker 1.5s infinite alternate;
+    }
+
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.95; }
+    }
+  </style>
+</head>
+<body>
+  <h1>nickname</h1>
+</body>
+</html>
