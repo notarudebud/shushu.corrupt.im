@@ -5,7 +5,6 @@
   <title>@shushu</title>
   <link rel="icon" type="image/x-icon" href="assets/top.ico">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-
   <meta name="description" content="free will">
   <meta name="keywords" content="free will">
   <meta name="author" content="@shushu">
@@ -25,6 +24,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
+      gap: 5px;
     }
 
     header a {
@@ -67,6 +67,12 @@
     .dark-mode button:hover {
       background: #444;
     }
+    .dark-mode textarea,
+    .dark-mode input[type="text"] {
+      background: #222;
+      color: #eee;
+      border-color: #555;
+    }
 
     .container {
       max-width: 900px;
@@ -82,6 +88,7 @@
       font-family: monospace;
       resize: none;
       box-sizing: border-box;
+      transition: background 0.3s, color 0.3s, border-color 0.3s;
     }
 
     button {
@@ -141,7 +148,6 @@
       cursor: pointer;
     }
 
-    /* Quoted post style */
     .quoted {
       border: 1px solid #ddd;
       padding: 8px;
@@ -154,7 +160,6 @@
       color: #777;
     }
 
-    /* Notifications */
     #notifications {
       position: fixed;
       top: 10px;
@@ -188,7 +193,6 @@
       transform: translateX(100%);
     }
 
-    /* Loading box */
     .loading {
       background: #fff;
       border: 1px solid #ccc;
@@ -199,255 +203,241 @@
       margin-bottom: 15px;
     }
 
-    /* Mobile fixes */
     @media (max-width: 600px) {
-      body {
-        font-size: 14px;
-      }
-      .container {
-        padding: 5px;
-      }
-      .post {
-        font-size: 14px;
-        flex-direction: column;
-        align-items: flex-start;
-      }
-      .actions {
-        font-size: 12px;
-      }
-      .post img {
-        max-width: 100%;
-        max-height: 200px;
-      }
+      body { font-size: 14px; }
+      .container { padding: 5px; }
+      .post { font-size: 14px; flex-direction: column; align-items: flex-start; }
+      .actions { font-size: 12px; }
+      .post img { max-width: 100%; max-height: 200px; }
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      position: fixed;
+      top:0; left:0;
+      width:100%; height:100%;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(3px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    }
+    .modal {
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      width: 300px;
+      max-width: 90%;
+      box-sizing: border-box;
+    }
+    .modal input[type="text"] {
+      width: 100%;
+      margin-top: 10px;
+    }
+    .modal button {
+      margin-top: 10px;
+    }
+    .dark-mode .modal {
+      background: #222;
+      color: #eee;
+      border: 1px solid #555;
     }
   </style>
 </head>
 <body>
-  <header>
-    <a href="https://www.instagram.com/pizzawhiskers90/" target="_blank">@shushu · silly little experiment</a>
-    <button onclick="toggleDarkMode()">🌙</button>
-  </header>
+<header>
+  <a href="https://www.instagram.com/pizzawhiskers90/" target="_blank">@shushu · embrace free will</a>
+  <a href="https://shushu.corrupt.im/uses" target="_blank">our ToS (bullshit)</a>
+  <button onclick="toggleDarkMode()">🌙</button>
+</header>
 
-  <div class="container">
-    <textarea id="postText" rows="3" placeholder="Type your message here..."></textarea>
-    <input type="text" id="postImage" placeholder="Optional image URL">
-    <input type="hidden" id="quoteIndex">
-    <button onclick="createPost()">Upload</button>
-    <button onclick="cancelQuote()">Cancel Quote</button>
+<div class="container">
+  <textarea id="postText" rows="3" placeholder="Type your message here..."></textarea>
+  <input type="text" id="postImage" placeholder="Optional image URL">
+  <input type="hidden" id="quoteIndex">
+  <button onclick="createPost()">Upload</button>
+  <button onclick="cancelQuote()">Cancel Quote</button>
+  <div id="posts"></div>
+</div>
 
-    <div id="posts"></div>
+<div id="notifications"></div>
+
+<!-- Nickname Modal -->
+<div class="modal-overlay" id="nicknameModal">
+  <div class="modal">
+    <h3>Change your nickname</h3>
+    <input type="text" id="nicknameInput" placeholder="Enter nickname">
+    <button onclick="saveNickname()">Save</button>
+    <button onclick="closeNicknameModal()">Cancel</button>
   </div>
+</div>
 
-  <div id="notifications"></div>
+<script>
+const BIN_ID = "68a8143bae596e708fd0dd3a";
+const MASTER_KEY = "$2a$10$Ew3l92X5qMxwJsfdJsSLYOa1WF6nUZU9.FRLUUayL2W5WfxGVL9O6";
 
-  <script>
-    const BIN_ID = "68a8143bae596e708fd0dd3a";
-    const MASTER_KEY = "$2a$10$Ew3l92X5qMxwJsfdJsSLYOa1WF6nUZU9.FRLUUayL2W5WfxGVL9O6";
+// Load darkmode preference
+if(localStorage.getItem('darkMode') === 'true') {
+  document.body.classList.add('dark-mode');
+}
 
-    async function fetchPosts() {
-      let postsDiv = document.getElementById("posts");
-      postsDiv.innerHTML = `<div class="loading">Loading posts...</div>`;
-      try {
-        let res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-          headers: { "X-Master-Key": MASTER_KEY }
-        });
-        let data = await res.json();
-        let posts = data.record.posts || [];
-        renderPosts(posts);
-      } catch (e) {
-        console.error("Error fetching:", e);
-        postsDiv.innerHTML = `<div class="loading">Failed to load posts</div>`;
+// Load nickname
+let myNickname = localStorage.getItem('nickname') || null;
+
+async function fetchPosts() {
+  let postsDiv = document.getElementById("posts");
+  postsDiv.innerHTML = `<div class="loading">give it a second.</div>`;
+  try {
+    let res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+      headers: { "X-Master-Key": MASTER_KEY }
+    });
+    let data = await res.json();
+    let posts = data.record.posts || [];
+    renderPosts(posts);
+  } catch(e) {
+    console.error("Error fetching:", e);
+    postsDiv.innerHTML = `<div class="loading">Failed to load posts</div>`;
+  }
+}
+
+async function savePosts(posts) {
+  await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": MASTER_KEY
+    },
+    body: JSON.stringify({ posts })
+  });
+}
+
+async function createPost() {
+  let text = document.getElementById("postText").value.trim();
+  let image = document.getElementById("postImage").value.trim();
+  let quoteIndex = document.getElementById("quoteIndex").value;
+  if(!text && !image && !quoteIndex) return;
+
+  let res = await fetch("https://api.ipify.org?format=json");
+  let ip = (await res.json()).ip;
+
+  let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+    headers: { "X-Master-Key": MASTER_KEY }
+  });
+  let data = await res2.json();
+  let posts = data.record.posts || [];
+
+  posts.unshift({
+    id: Date.now(),
+    user: myNickname || ip,
+    text,
+    image: image || null,
+    time: new Date().toISOString(),
+    likes: [],
+    dislikes: [],
+    quote: quoteIndex !== "" ? quoteIndex : null
+  });
+
+  await savePosts(posts);
+  document.getElementById("postText").value = "";
+  document.getElementById("postImage").value = "";
+  document.getElementById("quoteIndex").value = "";
+  fetchPosts();
+  showNotif("Posted!");
+}
+
+function renderPosts(posts) {
+  let postsDiv = document.getElementById("posts");
+  postsDiv.innerHTML = "";
+  posts.forEach((p, i) => {
+    let date = new Date(p.time);
+    let dateStr = `${date.getMonth()+1}/${date.getDate()}, ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} ${date.getFullYear()}`;
+    
+    let quotedHtml = "";
+    if(p.quote) {
+      let q = posts.find(x=>x.id==p.quote);
+      if(q) {
+        let qDate = new Date(q.time);
+        let qDateStr = `${qDate.getMonth()+1}/${qDate.getDate()} ${qDate.getFullYear()}`;
+        quotedHtml = `<div class="quoted"><div class="meta">@${q.user} · ${qDateStr}</div><div class="content">${q.text||""}</div>${q.image?`<img src="${q.image}" style="max-width:120px;max-height:120px;">`:''}</div>`;
       }
     }
 
-    async function savePosts(posts) {
-      await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Master-Key": MASTER_KEY
-        },
-        body: JSON.stringify({ posts })
-      });
-    }
+    let div = document.createElement("div");
+    div.className="post";
+    div.innerHTML=`
+      <div class="post-content">
+        <div class="meta">@${p.user} · ${dateStr}</div>
+        <div class="content">${p.text||""}</div>
+        ${p.image?`<img src="${p.image}" alt="img">`:''}
+        ${quotedHtml}
+      </div>
+      <div class="actions">
+        <span onclick="likePost(${i})">👍 ${p.likes.length}</span>
+        <span onclick="dislikePost(${i})">👎 ${p.dislikes.length}</span>
+        <span onclick="quotePost(${i})">💬 Quote</span>
+        <span onclick="deletePost(${i})" style="color:red;">🗑️ Delete</span>
+      </div>
+    `;
+    postsDiv.appendChild(div);
+  });
+}
 
-    async function createPost() {
-      let text = document.getElementById("postText").value.trim();
-      let image = document.getElementById("postImage").value.trim();
-      let quoteIndex = document.getElementById("quoteIndex").value;
+async function likePost(i) {
+  let ip = (await (await fetch("https://api.ipify.org?format=json")).json()).ip;
+  let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers: { "X-Master-Key": MASTER_KEY }});
+  let data = await res2.json();
+  let posts = data.record.posts || [];
+  if(!posts[i]) return;
+  posts[i].dislikes = posts[i].dislikes.filter(u=>u!==ip);
+  if(!posts[i].likes.includes(ip)){posts[i].likes.push(ip); showNotif("Liked post");} else {posts[i].likes = posts[i].likes.filter(u=>u!==ip); showNotif("Unliked post");}
+  await savePosts(posts); fetchPosts();
+}
 
-      if (!text && !image && !quoteIndex) return;
+async function dislikePost(i) {
+  let ip = (await (await fetch("https://api.ipify.org?format=json")).json()).ip;
+  let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers: { "X-Master-Key": MASTER_KEY }});
+  let data = await res2.json();
+  let posts = data.record.posts || [];
+  if(!posts[i]) return;
+  posts[i].likes = posts[i].likes.filter(u=>u!==ip);
+  if(!posts[i].dislikes.includes(ip)){posts[i].dislikes.push(ip); showNotif("Disliked post");} else {posts[i].dislikes = posts[i].dislikes.filter(u=>u!==ip); showNotif("Undisliked post");}
+  await savePosts(posts); fetchPosts();
+}
 
-      let res = await fetch("https://api.ipify.org?format=json");
-      let ip = (await res.json()).ip;
+async function quotePost(i) {
+  let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers: { "X-Master-Key": MASTER_KEY }});
+  let data = await res2.json();
+  let posts = data.record.posts || [];
+  if(posts[i]){document.getElementById("quoteIndex").value=posts[i].id; showNotif("Quoting post..."); document.getElementById("postText").focus();}
+}
 
-      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-        headers: { "X-Master-Key": MASTER_KEY }
-      });
-      let data = await res2.json();
-      let posts = data.record.posts || [];
+function cancelQuote(){document.getElementById("quoteIndex").value=""; showNotif("Quote cancelled");}
 
-      posts.unshift({
-        id: Date.now(),
-        user: ip,
-        text,
-        image: image || null,
-        time: new Date().toISOString(),
-        likes: [],
-        dislikes: [],
-        quote: quoteIndex !== "" ? quoteIndex : null
-      });
+async function deletePost(i){
+  if(!confirm("Are you sure you want to delete this post?")) return;
+  let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, { headers: { "X-Master-Key": MASTER_KEY }});
+  let data = await res2.json();
+  let posts = data.record.posts || [];
+  posts.splice(i,1); await savePosts(posts); fetchPosts(); showNotif("Post deleted");
+}
 
-      await savePosts(posts);
-      document.getElementById("postText").value = "";
-      document.getElementById("postImage").value = "";
-      document.getElementById("quoteIndex").value = "";
-      fetchPosts();
-      showNotif("Posted!");
-    }
+function toggleDarkMode(){
+  document.body.classList.toggle("dark-mode");
+  localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+}
 
-    function renderPosts(posts) {
-      let postsDiv = document.getElementById("posts");
-      postsDiv.innerHTML = "";
-      posts.forEach((p, i) => {
-        let date = new Date(p.time);
-        let dateStr = `${date.getMonth()+1}/${date.getDate()}, ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} ${date.getFullYear()}`;
-        
-        let quotedHtml = "";
-        if (p.quote) {
-          let q = posts.find(x => x.id == p.quote);
-          if (q) {
-            let qDate = new Date(q.time);
-            let qDateStr = `${qDate.getMonth()+1}/${qDate.getDate()} ${qDate.getFullYear()}`;
-            quotedHtml = `
-              <div class="quoted">
-                <div class="meta">@${q.user} · ${qDateStr}</div>
-                <div class="content">${q.text || ""}</div>
-                ${q.image ? `<img src="${q.image}" alt="img" style="max-width:120px;max-height:120px;">` : ""}
-              </div>
-            `;
-          }
-        }
+function showNotif(text){
+  let notif=document.createElement("div");
+  notif.className="notif"; notif.innerText=text;
+  document.getElementById("notifications").appendChild(notif);
+  setTimeout(()=>notif.classList.add("show"),50);
+  setTimeout(()=>notif.classList.remove("show"),2000);
+  setTimeout(()=>notif.remove(),2500);
+}
 
-        let div = document.createElement("div");
-        div.className = "post";
-        div.innerHTML = `
-          <div class="post-content">
-            <div class="meta">@${p.user} · ${dateStr}</div>
-            <div class="content">${p.text || ""}</div>
-            ${p.image ? `<img src="${p.image}" alt="img">` : ""}
-            ${quotedHtml}
-          </div>
-          <div class="actions">
-            <span onclick="likePost(${i})">👍 ${p.likes.length}</span>
-            <span onclick="dislikePost(${i})">👎 ${p.dislikes.length}</span>
-            <span onclick="quotePost(${i})">💬 Quote</span>
-            <span onclick="deletePost(${i})" style="color:red;">🗑️ Delete</span>
-          </div>
-        `;
-        postsDiv.appendChild(div);
-      });
-    }
 
-    async function likePost(i) {
-      let res = await fetch("https://api.ipify.org?format=json");
-      let ip = (await res.json()).ip;
-
-      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-        headers: { "X-Master-Key": MASTER_KEY }
-      });
-      let data = await res2.json();
-      let posts = data.record.posts || [];
-
-      if (!posts[i]) return;
-
-      posts[i].dislikes = posts[i].dislikes.filter(u => u !== ip);
-      if (!posts[i].likes.includes(ip)) {
-        posts[i].likes.push(ip);
-        showNotif("Liked post");
-      } else {
-        posts[i].likes = posts[i].likes.filter(u => u !== ip);
-        showNotif("Unliked post");
-      }
-
-      await savePosts(posts);
-      fetchPosts();
-    }
-
-    async function dislikePost(i) {
-      let res = await fetch("https://api.ipify.org?format=json");
-      let ip = (await res.json()).ip;
-
-      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-        headers: { "X-Master-Key": MASTER_KEY }
-      });
-      let data = await res2.json();
-      let posts = data.record.posts || [];
-
-      if (!posts[i]) return;
-
-      posts[i].likes = posts[i].likes.filter(u => u !== ip);
-      if (!posts[i].dislikes.includes(ip)) {
-        posts[i].dislikes.push(ip);
-        showNotif("Disliked post");
-      } else {
-        posts[i].dislikes = posts[i].dislikes.filter(u => u !== ip);
-        showNotif("Undisliked post");
-      }
-
-      await savePosts(posts);
-      fetchPosts();
-    }
-
-    async function quotePost(i) {
-      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-        headers: { "X-Master-Key": MASTER_KEY }
-      });
-      let data = await res2.json();
-      let posts = data.record.posts || [];
-      if (posts[i]) {
-        document.getElementById("quoteIndex").value = posts[i].id;
-        showNotif("Quoting post...");
-        document.getElementById("postText").focus();
-      }
-    }
-
-    function cancelQuote() {
-      document.getElementById("quoteIndex").value = "";
-      showNotif("Quote cancelled");
-    }
-
-    async function deletePost(i) {
-      if (!confirm("Are you sure you want to delete this post?")) return;
-
-      let res2 = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
-        headers: { "X-Master-Key": MASTER_KEY }
-      });
-      let data = await res2.json();
-      let posts = data.record.posts || [];
-
-      posts.splice(i, 1);
-      await savePosts(posts);
-      fetchPosts();
-      showNotif("Post deleted");
-    }
-
-    function toggleDarkMode() {
-      document.body.classList.toggle("dark-mode");
-    }
-
-    function showNotif(text) {
-      let notif = document.createElement("div");
-      notif.className = "notif";
-      notif.innerText = text;
-      document.getElementById("notifications").appendChild(notif);
-
-      setTimeout(() => notif.classList.add("show"), 50);
-      setTimeout(() => notif.classList.remove("show"), 2000);
-      setTimeout(() => notif.remove(), 2500);
-    }
-
-    fetchPosts();
-  </script>
+fetchPosts();
+</script>
 </body>
 </html>
